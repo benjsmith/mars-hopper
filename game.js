@@ -1103,21 +1103,22 @@
 
   // ── title chopsticks sim ────────────────────────────────────────────────
   function titlePose(t) {
-    // Descend → catch → lower to pad → open jaws → ship launches alone →
-    // chopsticks stay down, then slowly retract to catch height.
-    // 0.0–1.7  ship enters from top; arms waiting open at catch height
-    // 1.7–2.4  arms close
-    // 2.4–2.6  catch thump
-    // 2.6–4.6  lower stack + arms to pad
-    // 4.6–5.5  rest on pad (jaws closed)
-    // 5.5–6.1  jaws open on pad
-    // 6.1–7.2  ship launches alone; arms stay open at pad
-    // 7.2–8.6  arms slowly retract pad → catch (open)
+    // Chopsticks are a tower mechanism — NOT parented to the ship.
+    // armY is independent. While held, shipY is driven by armY (stack in jaws).
+    //
+    // 0.0–1.8  ship descends from above; arms wait open at catch height
+    // 1.8–2.6  arms close at catch height (ship hovers in the jaws)
+    // 2.6–2.8  catch thump — locked
+    // 2.8–4.8  arms lower to pad (ship rides in jaws)
+    // 4.8–5.6  rest on pad, jaws closed
+    // 5.6–6.2  jaws open at pad (ship free on pad)
+    // 6.2–7.3  ship launches alone; arms stay open at pad
+    // 7.3–8.6  arms slowly retract pad → catch height
     const p = t % TITLE_LOOP;
     const catchY = H * 0.42;
-    const padY = H - 88; // feet on the OLM / landing pad
+    const padY = H - 88;
     let shipY = catchY;
-    let armY = catchY; // chopsticks height (feet-equivalent of held ship)
+    let armY = catchY; // independent chopsticks carriage height
     let thruster = 0;
     let armClose = 0;
     let caught = false;
@@ -1128,72 +1129,83 @@
     let shipTilt = 0;
     let shipVisible = true;
 
-    if (p < 1.7) {
-      const u = p / 1.7;
-      shipY = lerp(-90, catchY, easeInOut(u));
+    if (p < 1.8) {
+      // free flight in — arms fixed open at catch
+      const u = p / 1.8;
+      shipY = lerp(-100, catchY, easeInOut(u));
       armY = catchY;
-      thruster = 0.8 + Math.sin(p * 28) * 0.18;
+      thruster = 0.85 + Math.sin(p * 28) * 0.15;
       armClose = 0;
-      shipTilt = Math.sin(p * 1.4) * 0.03;
-    } else if (p < 2.4) {
-      const u = (p - 1.7) / 0.7;
-      shipY = catchY + Math.sin(u * Math.PI) * 3;
-      armY = shipY;
-      thruster = 0.5 + Math.sin(p * 22) * 0.1;
+      shipTilt = Math.sin(p * 1.3) * 0.035;
+      shipX = W / 2 + Math.sin(p * 1.1) * 5;
+    } else if (p < 2.6) {
+      // CATCH: arms close in place; ship holds station in the catch zone
+      const u = (p - 1.8) / 0.8;
+      armY = catchY;
+      shipY = catchY + Math.sin(u * Math.PI * 2) * 2; // tiny hover, not attached
+      thruster = lerp(0.55, 0.2, u) + Math.sin(p * 20) * 0.05;
       armClose = easeInOut(u);
       shipTilt = (1 - u) * 0.02;
-    } else if (p < 2.6) {
-      const u = (p - 2.4) / 0.2;
-      shipY = catchY + Math.sin(u * Math.PI) * 3;
-      armY = shipY;
-      thruster = 0.15 * (1 - u);
+      shipX = W / 2 + (1 - u) * Math.sin(p * 2) * 3;
+    } else if (p < 2.8) {
+      // lock
+      const u = (p - 2.6) / 0.2;
+      armY = catchY;
+      shipY = catchY; // snap into jaws
+      thruster = 0.12 * (1 - u);
       armClose = 1;
       caught = true;
-    } else if (p < 4.6) {
-      const u = (p - 2.6) / 2.0;
-      shipY = lerp(catchY, padY, easeInOut(u));
-      armY = shipY; // arms ride the stack down
+      shipX = W / 2;
+      shipTilt = 0;
+    } else if (p < 4.8) {
+      // arms lower; ship is carried (follows armY while held)
+      const u = (p - 2.8) / 2.0;
+      armY = lerp(catchY, padY, easeInOut(u));
+      shipY = armY;
       thruster = 0;
       armClose = 1;
       caught = true;
-      shipTilt = Math.sin(u * Math.PI * 2) * 0.02;
-    } else if (p < 5.5) {
-      shipY = padY + Math.sin((p - 4.6) * 2) * 1.5;
+      shipX = W / 2;
+      shipTilt = Math.sin(u * Math.PI) * 0.015;
+    } else if (p < 5.6) {
       armY = padY;
+      shipY = padY;
       thruster = 0;
       armClose = 1;
       caught = true;
       onPad = true;
-      shipTilt = Math.sin((p - 4.6) * 1.5) * 0.015;
-    } else if (p < 6.1) {
-      // release: jaws open, arms stay at pad height
-      const u = (p - 5.5) / 0.6;
-      shipY = padY;
+      shipX = W / 2;
+      shipTilt = Math.sin((p - 4.8) * 1.6) * 0.01;
+    } else if (p < 6.2) {
+      // release jaws — arms stay at pad, ship free on deck
+      const u = (p - 5.6) / 0.6;
       armY = padY;
+      shipY = padY;
       thruster = 0;
       armClose = 1 - easeInOut(u);
       onPad = true;
-    } else if (p < 7.2) {
-      // ship only — chopsticks remain down and open
-      const u = (p - 6.1) / 1.1;
-      shipY = lerp(padY, -110, easeInOut(u));
+      shipX = W / 2;
+    } else if (p < 7.3) {
+      // ship only lifts off; chopsticks stay put at pad
+      const u = (p - 6.2) / 1.1;
       armY = padY;
-      thruster = 0.45 + u * 0.65;
       armClose = 0;
+      shipY = lerp(padY, -120, easeInOut(u));
+      thruster = 0.5 + u * 0.6;
       launching = true;
-      shipTilt = Math.sin(u * Math.PI) * 0.02;
+      shipX = W / 2 + Math.sin(u * 4) * 2;
+      shipTilt = Math.sin(u * Math.PI) * 0.025;
     } else {
-      // slow retract to catch position for next loop
-      const u = (p - 7.2) / Math.max(0.01, TITLE_LOOP - 7.2);
-      shipY = -120;
+      // chopsticks retract alone back to catch height
+      const u = (p - 7.3) / Math.max(0.01, TITLE_LOOP - 7.3);
+      armY = lerp(padY, catchY, easeInOut(u));
+      armClose = 0;
+      shipY = -140;
       shipVisible = false;
       thruster = 0;
-      armClose = 0;
-      armY = lerp(padY, catchY, easeInOut(u));
       retracting = true;
+      shipX = W / 2;
     }
-
-    shipX = W / 2 + Math.sin(p * 1.1) * 3;
 
     return {
       shipX,
@@ -1227,11 +1239,11 @@
       // catch thump once per loop (no white flash)
       const p = titlePhase % TITLE_LOOP;
       const prev = (titlePhase - dt + TITLE_LOOP * 100) % TITLE_LOOP;
-      if (prev < 2.4 && p >= 2.4) {
+      if (prev < 2.6 && p >= 2.6) {
         shake = 6;
         sfxCatch();
         burst(W / 2, H * 0.42, 14, C.chopLite, 2);
-        burst(W / 2, H * 0.42, 8, C.ship, 1.2);
+        burst(W / 2, H * 0.42 - SHIP_H * TITLE_SHIP_SCALE * 0.45, 10, C.ship, 1.4);
       }
     }
 
@@ -1991,57 +2003,71 @@
   }
 
   function drawTitleArms(armClose, armFeetY) {
-    // armFeetY = height where held ship's feet would be; jaws grab mid-body
-    const bodyMid = armFeetY - SHIP_H * TITLE_SHIP_SCALE * 0.4;
-    const pivotY = bodyMid;
-    const openSpread = 155;
-    const closedSpread = 26;
+    // Independent tower carriage. armFeetY = where a held ship's feet sit;
+    // jaws close on mid-body (not parented to the sprite transform).
+    // Body mid at scale 5: ~0.45 of ship height up from feet.
+    const grabOffset = SHIP_H * TITLE_SHIP_SCALE * 0.45;
+    const pivotY = armFeetY - grabOffset;
+    // hull half-width at scale ≈ 4 * 5 = 20; closed jaws hug that
+    const openSpread = 150;
+    const closedSpread = 24;
     const spread = lerp(openSpread, closedSpread, armClose);
     const towerW = 28;
     const armThick = 14;
-    const jawW = 18;
-    const jawH = 40;
+    const jawW = 16;
+    const jawH = 48;
+
+    // carriage rail on tower at this height (makes arms look tower-mounted)
+    ctx.fillStyle = C.towerDark;
+    ctx.fillRect(W / 2 - 22, pivotY - 12, 44, 22);
+    ctx.fillStyle = C.chop;
+    ctx.fillRect(W / 2 - 20, pivotY - 8, 40, 12);
+    ctx.fillStyle = C.chopLite;
+    ctx.fillRect(W / 2 - 18, pivotY - 6, 36, 3);
 
     function drawArm(side) {
-      const px = W / 2 + side * (towerW * 0.4);
+      const rootX = W / 2 + side * (towerW * 0.55);
       const tipX = W / 2 + side * spread;
-      const tipY = pivotY + 8;
+      const tipY = pivotY + 4;
 
+      // hydraulic root bolted to tower carriage
       ctx.fillStyle = C.towerDark;
-      ctx.fillRect(px - 8, pivotY - 18, 16, 32);
+      ctx.fillRect(rootX - 9, pivotY - 16, 18, 30);
+      ctx.fillStyle = C.chop;
+      ctx.fillRect(rootX - 6, pivotY - 12, 12, 22);
 
-      ctx.strokeStyle = C.chop;
-      ctx.lineWidth = armThick;
+      // arm beam (fixed to tower, not to ship)
+      ctx.strokeStyle = "#6a7078";
+      ctx.lineWidth = armThick + 2;
       ctx.lineCap = "square";
       ctx.beginPath();
-      ctx.moveTo(px, pivotY);
+      ctx.moveTo(rootX, pivotY);
       ctx.lineTo(tipX, tipY);
       ctx.stroke();
 
       ctx.strokeStyle = C.chopLite;
       ctx.lineWidth = 5;
       ctx.beginPath();
-      ctx.moveTo(px, pivotY - 4);
-      ctx.lineTo(tipX, tipY - 4);
+      ctx.moveTo(rootX, pivotY - 3);
+      ctx.lineTo(tipX, tipY - 3);
       ctx.stroke();
 
-      ctx.fillStyle = armClose > 0.85 ? "#40ff80" : "#6a8090";
+      // jaw pads — green when fully closed on stack
+      ctx.fillStyle = armClose > 0.92 ? "#40ff80" : armClose > 0.5 ? "#8aa0b0" : "#6a8090";
       ctx.fillRect(tipX - jawW / 2, tipY - jawH / 2, jawW, jawH);
       ctx.fillStyle = C.towerDark;
-      ctx.fillRect(tipX - jawW / 2 - 1, tipY + jawH / 2 - 5, jawW + 2, 5);
-
-      if (armClose > 0.65) {
-        ctx.fillStyle = "#c0cad4";
-        ctx.fillRect(tipX - side * 4 - 3, tipY - 12, 10, 22);
-      }
+      ctx.fillRect(tipX - jawW / 2 - 1, tipY + jawH / 2 - 6, jawW + 2, 6);
+      // inner contact face
+      ctx.fillStyle = armClose > 0.85 ? "#d0d8e0" : "#9098a0";
+      ctx.fillRect(tipX - side * 2 - 3, tipY - jawH / 3, 8, (jawH * 0.55) | 0);
     }
 
     drawArm(-1);
     drawArm(1);
 
     if (armClose > 0.9) {
-      ctx.fillStyle = "rgba(128, 224, 255, 0.22)";
-      ctx.fillRect(W / 2 - closedSpread - 8, pivotY - 6, closedSpread * 2 + 16, 10);
+      ctx.fillStyle = "rgba(64, 255, 128, 0.2)";
+      ctx.fillRect(W / 2 - closedSpread - 6, pivotY - 8, closedSpread * 2 + 12, 12);
     }
   }
 
