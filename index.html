@@ -4,7 +4,8 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
   <title>MARS HOPPER — Starship Edition</title>
-  <link rel="stylesheet" href="style.css" />
+  <meta http-equiv="Cache-Control" content="no-cache" />
+  <link rel="stylesheet" href="style.css?v=20260710c" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet" />
@@ -42,6 +43,7 @@
       <span>xAI · SpaceX aesthetic · pixel hop</span>
     </footer>
   </div>
-  <script src="game.js"></script>
+  <!-- cache-bust query forces clients past GitHub Pages CDN max-age -->
+  <script src="game.js?v=20260710c"></script>
 </body>
 </html>
